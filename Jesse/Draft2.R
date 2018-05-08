@@ -16,9 +16,12 @@ names(acs)[names(acs) == 'CensusTract'] <- 'geo_id'
 total <- merge(acs,police,by="geo_id")
 total <-na.omit(total)
 total = total[ ! total$raceethnicity %in% "Unknown", ]
+#factor variables
 total$raceethnicity = factor(total$raceethnicity)
 total$armed = factor(total$armed)
 total$gender = factor(total$gender)
+#correct the age issue
+total$age = total$age + 15
 #state_pop = aggregate(TotalPop~State,acs,sum)
 #total = merge(total, state_pop, by = "State")
 
@@ -50,11 +53,53 @@ toytableCounty = acs %>%
 datastate <- merge(total,toytableState,by="State")
 datacounty <- merge(total,toytableCounty,by ="County")
 
-keeps <-c("raceethnicity","age","armed", "gender", "TotalState" ,"StateIncomePerCap", 
-          "StateUnemployment", "StatePoverty", "StateMen", "State")
-datastateuse <- datastate[ , (names(datastate) %in% keeps)]
-datastateuse$Minority <- ifelse(datastateuse$raceethnicity != "White", 1, 0)
-datastateuse$State= factor(datastateuse$State)
+#consider varying slope varying intercept model with intercept varying for county
+#and slope varying for state
+#datacountystate <- merge(datacou)
 
-StateModel <-glmer(Minority ~ age + armed + gender + (1|"State"),family = binomial("logit"), data = datastateuse)
+#Variables to keep in multilevel models
+keepsstate <-c("raceethnicity","age","armed", "gender", "TotalState" ,"StateIncomePerCap", 
+          "StateUnemployment", "StatePoverty", "StateMen", "State")
+keepscounty <-c("raceethnicity","age","armed", "gender", "TotalCounty" ,"CountyIncomePerCap", 
+          "CountyUnemployment", "CountyPoverty", "CountyMen", "County")
+
+
+
+#Create dataframe for multilevelmodels with state
+datastateuse <- datastate[ , (names(datastate) %in% keepsstate)]
+datastateuse$Minority <- ifelse(datastateuse$raceethnicity != "White", 1, 0)
+datastateuse$State <- factor(datastateuse$State)
+datastateuse$armed <- ifelse(datastateuse$armed != "No", 0, 1)
+datastateuse$gender <- ifelse(datastateuse$gender != "Male", 1, 0)
+
+#create dataframe for multilevelmodels with county
+datacountyuse <- datacounty[ , (names(datacounty) %in% keepscounty)]
+datacountyuse$Minority <- ifelse(datacountyuse$raceethnicity != "White", 1, 0)
+datacountyuse$County <- factor(datacountyuse$County)
+datacountyuse$armed <- ifelse(datacountyuse$armed != "No", 0, 1)
+#datacountyuse$gender <- ifelse(datacountyuse$gender != "Male", 1, 0)
+
+
+
+
+InterceptStateModel <-glmer(Minority ~ age + gender + armed + (1|State),
+                   family = binomial("logit"), data = datastateuse)
+
+#unfortunately the model fails to converge for feautres other than age and 
+#gender having varying coefficients
+SlopeStateModel <-glmer(Minority ~ age + gender + armed +(1+age + gender|State),
+                   family = binomial("logit"), data = datastateuse)
+
+InterceptCountyModel <- glmer(Minority ~ age + gender + armed + (1|County),
+                              family = binomial("logit"), data = datacountyuse)
+
+#Unfortunately, we don't have enough observations to run a varying slope model for the county
+#SlopeCountyModel <- glmer(Minority ~ age + gender + (1+age+gender|County),
+#                             family = binomial("logit"), data = datacountyuse)
+
+#Something to consider is a varying slope varying intercept model using county and state level predictors
+#InterceptCountySlopeStateModel <- glmer(Minority ~ age + gender + (1|County) +(1+age+gender|State),
+ #                             family = binomial("logit"), data = datacountyuse)
+
+
 
