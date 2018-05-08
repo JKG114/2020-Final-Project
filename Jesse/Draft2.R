@@ -87,13 +87,14 @@ InterceptStateModel <-glmer(Minority ~ age + gender + armed + (1|State),
 
 #unfortunately the model fails to converge for feautres other than age and 
 #gender having varying coefficients
+#log_state_model = glm(Minority~ ., data = datastateuse)
 OneSlopeStateModel <-glmer(Minority ~ age + gender + armed +(1+age|State),
-                   family = binomial("logit"), data = datastateuse)
+                   family = binomial(link = "logit"), data = datastateuse)
 TwoSlopeStateModel <-glmer(Minority ~ age + gender + armed +(1+age+gender|State),
-                        family = binomial("logit"), data = datastateuse)
+                        family = binomial(link = "logit"), data = datastateuse)
 
 InterceptCountyModel <- glmer(Minority ~ age + gender + armed + (1|County),
-                              family = binomial("logit"), data = datacountyuse)
+                              family = binomial(link = "logit"), data = datacountyuse)
 
 #Unfortunately, we don't have enough observations to run a varying slope model for the county
 #SlopeCountyModel <- glmer(Minority ~ age + gender + (1+age+gender|County),
