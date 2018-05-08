@@ -87,8 +87,10 @@ InterceptStateModel <-glmer(Minority ~ age + gender + armed + (1|State),
 
 #unfortunately the model fails to converge for feautres other than age and 
 #gender having varying coefficients
-SlopeStateModel <-glmer(Minority ~ age + gender + armed +(1+age + gender|State),
+OneSlopeStateModel <-glmer(Minority ~ age + gender + armed +(1+age|State),
                    family = binomial("logit"), data = datastateuse)
+TwoSlopeStateModel <-glmer(Minority ~ age + gender + armed +(1+age+gender|State),
+                        family = binomial("logit"), data = datastateuse)
 
 InterceptCountyModel <- glmer(Minority ~ age + gender + armed + (1|County),
                               family = binomial("logit"), data = datacountyuse)
@@ -101,5 +103,9 @@ InterceptCountyModel <- glmer(Minority ~ age + gender + armed + (1|County),
 #InterceptCountySlopeStateModel <- glmer(Minority ~ age + gender + (1|County) +(1+age+gender|State),
  #                             family = binomial("logit"), data = datacountyuse)
 
-
-
+## Compare models
+kable(anova(InterceptStateModel, OneSlopeStateModel,TwoSlopeStateModel), type = "pandoc", caption = "Table 1: Comparison of varying/intercept slope and varying intercept on State")
+summary(InterceptStateModel)
+summary(OneSlopeStateModel)
+summary(TwoSlopeStateModel)
+summary(InterceptCountyModel)
