@@ -2,7 +2,9 @@ library(ggplot2)
 library(ggcorrplot)
 library(corrplot)
 library(dplyr)
-
+library(lme4) 
+library(nlme) 
+library(knitr)
 
 
 #setwd('Users/stuartgeman/Desktop/data2020/Final Project')
@@ -14,9 +16,9 @@ names(acs)[names(acs) == 'CensusTract'] <- 'geo_id'
 total <- merge(acs,police,by="geo_id")
 total <-na.omit(total)
 total = total[ ! total$raceethnicity %in% "Unknown", ]
-total = factor(total$raceethnicity)
-total = factor(total$armed)
-total = factor(total$gender)
+total$raceethnicity = factor(total$raceethnicity)
+total$armed = factor(total$armed)
+total$gender = factor(total$gender)
 #state_pop = aggregate(TotalPop~State,acs,sum)
 #total = merge(total, state_pop, by = "State")
 
@@ -49,5 +51,10 @@ datastate <- merge(total,toytableState,by="State")
 datacounty <- merge(total,toytableCounty,by ="County")
 
 keeps <-c("raceethnicity","age","armed", "gender", "TotalState" ,"StateIncomePerCap", 
-          "StateUnemployment", "StatePoverty", "StateMen")
+          "StateUnemployment", "StatePoverty", "StateMen", "State")
 datastateuse <- datastate[ , (names(datastate) %in% keeps)]
+datastateuse$Minority <- ifelse(datastateuse$raceethnicity != "White", 1, 0)
+datastateuse$State= factor(datastateuse$State)
+
+StateModel <-glmer(Minority ~ age + armed + gender + (1|"State"),family = binomial("logit"), data = datastateuse)
+
