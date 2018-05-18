@@ -1,8 +1,7 @@
-%C = Demographics
-%E = Race Of deceased
 %Start with The NorthEast
-C=csvread('csvs/NonAG_RacesOfNortheast.csv',1);
-E=csvread('csvs/NonAG_NortheEast_RacesOfVictims.csv',1);
+C=csvread('csvs/RacesOfNortheast.csv',1);
+E=csvread('csvs/NortheEast_RacesOfVictims.csv',1);
+E = E';
 NumSamples=1000;
 [NumTracts,NTypes]=size(C);
 
@@ -54,9 +53,9 @@ end
     
 % Display Results
 
-figure(3)
-close(3)
-figure(3)
+figure(1)
+close(1)
+figure(1)
 subplot(2,2,1)
 hist(SS);
 hold on
@@ -65,14 +64,13 @@ hold off
 pvalue=(sum(SS>=S)+1)/(NumSamples+1);
 disp(['p-value: ',num2str(pvalue)]) 
 title('Northeast Hypthesis Test')
-text(35,200,['p-value <= ',num2str(pvalue)])
+text(.35,50,['p-value <= ',num2str(pvalue)])
 
 %NEW REGION
-%C = Demographics
-%E = Race Of deceased
 %Now the South
-C=csvread('csvs/NonAG_RacesOfSouth.csv',1);
-E=csvread('csvs/NonAG_South_RacesOfVictims.csv',1);
+C=csvread('csvs/RacesOfSouth.csv',1);
+E=csvread('csvs/South_RacesOfVictims.csv',1);
+E = E';
 NumSamples=1000;
 [NumTracts,NTypes]=size(C);
 
@@ -132,12 +130,13 @@ hold off
 pvalue=(sum(SS>=S)+1)/(NumSamples+1);
 disp(['p-value: ',num2str(pvalue)]) 
 title('South Hypthesis Test')
-text(130,250,['p-value <= ',num2str(pvalue)])
+text(.2,50,['p-value <= ',num2str(pvalue)])
 
 %NEW REGION
 %Now the Midwest
-C=csvread('csvs/NonAG_RacesOfMidwest.csv',1);
-E=csvread('csvs/NonAG_Midwest_RacesOfVictims.csv',1);
+C=csvread('csvs/RacesOfMidwest.csv',1);
+E=csvread('csvs/Midwest_RacesOfVictims.csv',1);
+E = E';
 NumSamples=1000;
 [NumTracts,NTypes]=size(C);
 
@@ -197,12 +196,13 @@ hold off
 pvalue=(sum(SS>=S)+1)/(NumSamples+1);
 disp(['p-value: ',num2str(pvalue)]) 
 title('Midwest Hypthesis Test')
-text(50,200,['p-value <= ',num2str(pvalue)])
+text(.25,50,['p-value <= ',num2str(pvalue)])
 
 %NEW REGION
 %Now the West
-C=csvread('csvs/NonAG_RacesOfWest.csv',1);
-E=csvread('csvs/NonAG_West_RacesOfVictims.csv',1);
+C=csvread('csvs/RacesOfWest.csv',1);
+E=csvread('csvs/West_RacesOfVictims.csv',1);
+E = E';
 NumSamples=1000;
 [NumTracts,NTypes]=size(C);
 
@@ -262,5 +262,5 @@ hold off
 pvalue=(sum(SS>=S)+1)/(NumSamples+1);
 disp(['p-value: ',num2str(pvalue)]) 
 title('West Hypthesis Test')
-text(130,200,['p-value <= ',num2str(pvalue)])
+text(.2,80,['p-value <= ',num2str(pvalue)])
 

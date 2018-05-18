@@ -205,22 +205,22 @@ Demographics_West = Demographics_West %>%
             Asian_Pacific = (sum(TotalState*(Asian_Pacific)))/TotalPop)
 Demographics_West$TotalPop = NULL
 #CSVs for NORTHEAST
-write.csv(Shooting_NorthEast, file = "Northeeast_RacesOfVictims.csv",row.names=FALSE)
-write.csv(Demographics_NorthEast, file = "RacesOfNortheast.csv",row.names=FALSE)
+write.csv(Shooting_NorthEast, file = "csvs/Northeeast_RacesOfVictims.csv",row.names=FALSE)
+write.csv(Demographics_NorthEast, file = "csvs/RacesOfNortheast.csv",row.names=FALSE)
 
 #CSVs for South
-write.csv(Shooting_South, file = "South_RacesOfVictims.csv",row.names=FALSE)
-write.csv(Demographics_South, file = "RacesOfSouth.csv",row.names=FALSE)
+write.csv(Shooting_South, file = "csvs/South_RacesOfVictims.csv",row.names=FALSE)
+write.csv(Demographics_South, file = "csvsRacesOfSouth.csv",row.names=FALSE)
 
 #CSVs for Midwest
-write.csv(Shooting_Midwest, file = "Midwest_RacesOfVictims.csv",row.names=FALSE)
-write.csv(Demographics_Midwest, file = "RacesOfMidwest.csv",row.names=FALSE)
+write.csv(Shooting_Midwest, file = "csvs/Midwest_RacesOfVictims.csv",row.names=FALSE)
+write.csv(Demographics_Midwest, file = "csvs/RacesOfMidwest.csv",row.names=FALSE)
 
 #CSVs for Mountain
 #write.csv(Shooting_Mountain, file = "Mountain_RacesOfVictims.csv",row.names=FALSE)
 #write.csv(Demographics_Mountain, file = "RacesOfMountain.csv",row.names=FALSE)
 
 #CSVs for West
-write.csv(Shooting_West, file = "West_RacesOfVictims.csv",row.names=FALSE)
-write.csv(Demographics_West, file = "RacesOfWest.csv",row.names=FALSE)
+write.csv(Shooting_West, file = "csvs/West_RacesOfVictims.csv",row.names=FALSE)
+write.csv(Demographics_West, file = "csvs/RacesOfWest.csv",row.names=FALSE)
 
