@@ -190,4 +190,12 @@ Demographics_West$Region = "West"
 totalW = merge(totalW, Demographics_West, by= "Region")
 total = rbind(totalNE,totalMid,totalS,totalW)
 #We Drop colnames that are useless
-drop = 
+drop = c("Region", "State", "geo_id", "County","IncomeErr", "IncomePerCapErr","Native","Asian",
+         "Employed", "PrivateWork","WorkAtHome","share_black", "share_hispanic","share_white",
+         "p_income","h_income","county_income", "TotalState.x", "State_Men.x","State_Unemployment.x", 
+         "State_IncomePerCap.x",  "State_Poverty.x","State_Hispanic.x","State_Black.x","State_White.x",
+         "State_Drive.x","State_Child_Poverty.x", "TotalState.y","State_Men.y","State_Unemployment.y","State_IncomePerCap.y",  
+         "State_Poverty.y", "State_Hispanic.y","State_Black.y","State_White.y","State_Drive.y","State_Child_Poverty.y", "cause")
+total = total[,!(names(total) %in% drop)]
+#This one is not clear so I leave it out of the above list (same goes for cause maybe..)
+total$armed = NULL
