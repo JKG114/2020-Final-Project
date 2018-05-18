@@ -12,6 +12,7 @@ library(dplyr)
 library(lme4) 
 library(nlme) 
 library(knitr) 
+library(MASS)
 
 
 #setwd('Users/stuartgeman/Desktop/data2020/Final Project')
@@ -199,3 +200,46 @@ drop = c("Region", "State", "geo_id", "County","IncomeErr", "IncomePerCapErr","N
 total = total[,!(names(total) %in% drop)]
 #This one is not clear so I leave it out of the above list (same goes for cause maybe..)
 total$armed = NULL
+total$pov = NULL
+#Turn Gender into 1's and zeros
+cols <- sapply(total, is.logical)
+total[,cols] <- lapply(total[,cols], as.numeric)
+#Okay Time for some feature selection:
+#We will use logistic regression to figure out which features we should
+#consider using. 
+full <- glm(raceethnicity ~.,data = total, family = binomial(""))
+#Degrees of Freedom: 420 Total (i.e. Null);  375 Residual
+#Null Deviance:	    515.5 
+#Residual Deviance: 318.1 	AIC: 410.1
+#Not good but better than our scores multilevel
+
+step <- stepAIC(full,direction = "both", trace = FALSE)
+step$anova
+
+#Final Selection Variables:
+#Final Model:
+ #raceethnicity ~ TotalPop + White + Black + Professional + Service + 
+  #Office + Construction + Production + Carpool + OtherTransp + 
+  #PublicWork + SelfEmployed + Unemployment + age + comp_income + 
+  #nat_bucket + college + State_IncomePerCap + State_Hispanic + 
+  #TotalRegion
+
+
+forward <- stepAIC(full,direction = "forward", trace = FALSE)
+forward$anova
+#Somewhat dissapointingly gives the same variables back for final 
+#model!
+
+backward <-stepAIC(full, direction = "backward", trace = FALSE)
+backward$anova
+#Final Selection Variables:
+#Final Model:
+  #raceethnicity ~ TotalPop + White + Black + Professional + Service + 
+  #Office + Construction + Production + Carpool + OtherTransp + 
+  #PublicWork + SelfEmployed + Unemployment + age + comp_income + 
+  #nat_bucket + college + State_IncomePerCap + State_Hispanic + 
+  #TotalRegion
+library(bestglm)
+Xy=total
+Xy$raceethnicity = NULL
+Xy = cbind(Xy, total$raceethnicity)
