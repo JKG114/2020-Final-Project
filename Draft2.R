@@ -17,8 +17,7 @@ total <- merge(acs,police,by="geo_id")
 total <-na.omit(total)
 total = total[ ! total$raceethnicity %in% "Unknown", ]
 
-
-state_pop = aggregate(TotalPop~State,acs,sum)
+#state_pop = aggregate(TotalPop~State,acs,sum)
 total = merge(total, state_pop, by = "State")
 
 
@@ -47,7 +46,7 @@ toycounty = acs %>%
             FracWhite = (sum(TotalPop*(White*.01)))/TotalCounty)
 
 
-total = merge(toytable,total,by="State")
+total_state = merge(toytable,total,by="State")
 total = merge(toycounty,total, by = "County")
 write.csv(total, file = "MergedData.csv")
 
