@@ -1,18 +1,13 @@
 library(ggplot2)
 library(ggcorrplot)
 library(corrplot)
-library(dplyr)
 library(lme4) 
 library(nlme) 
 library(knitr) 
-library(ggplot2)
-library(ggcorrplot)
-library(corrplot)
 library(dplyr)
-library(lme4) 
-library(nlme) 
 library(knitr) 
 library(MASS)
+library(bestglm)
 
 
 #setwd('Users/stuartgeman/Desktop/data2020/Final Project')
@@ -28,6 +23,7 @@ library(MASS)
 
 police = read.csv("police_killings_cleaned.csv")
 police$X = NULL
+police$age = police$age + 15
 police = na.omit(police)
 police = police[ ! police$raceethnicity %in% "Unknown", ]
 
@@ -37,6 +33,12 @@ names(acs)[names(acs) == 'CensusTract'] <- 'geo_id'
 #We merge the acs dataframe and police dataframe
 total <- merge(acs,police,by="geo_id")
 total <-na.omit(total)
+total$White = total$White/100
+total$Black = total$Black/100
+total$Hispanic = total$Hispanic/100
+total$Pacific = total$Pacific/100
+total$Asian = total$Asian/100
+total$Native - total$Native/100
 
 
 total$raceethnicity <- as.character(total$raceethnicity)
@@ -171,13 +173,13 @@ total = total[,!(names(total) %in% drop)]
 total = merge(total, state_levels, by= "State")
 
 totalNE = subset(total, (total$State %in% NorthEast))
-totalNE$Region = "Mid"
-Demographics_NorthEast$Region = "Mid"
+totalNE$Region = "NE"
+Demographics_NorthEast$Region = "NE"
 totalNE = merge(totalNE, Demographics_NorthEast, by= "Region")
 
 totalS = subset(total, (total$State %in% South))
-totalS$Region = "Mid"
-Demographics_South$Region = "Mid"
+totalS$Region = "South"
+Demographics_South$Region = "South"
 totalS = merge(totalS, Demographics_South, by= "Region")
 
 totalMid = subset(total, (total$State %in% Midwest))
@@ -207,7 +209,7 @@ total[,cols] <- lapply(total[,cols], as.numeric)
 #Okay Time for some feature selection:
 #We will use logistic regression to figure out which features we should
 #consider using. 
-full <- glm(raceethnicity ~.,data = total, family = binomial(""))
+full <- glm(raceethnicity ~.,data = total, family = binomial())
 #Degrees of Freedom: 420 Total (i.e. Null);  375 Residual
 #Null Deviance:	    515.5 
 #Residual Deviance: 318.1 	AIC: 410.1
@@ -228,7 +230,7 @@ step$anova
 forward <- stepAIC(full,direction = "forward", trace = FALSE)
 forward$anova
 #Somewhat dissapointingly gives the same variables back for final 
-#model!
+#model (in fact, if both can't be applied reverts to backward)!
 
 backward <-stepAIC(full, direction = "backward", trace = FALSE)
 backward$anova
@@ -239,7 +241,66 @@ backward$anova
   #PublicWork + SelfEmployed + Unemployment + age + comp_income + 
   #nat_bucket + college + State_IncomePerCap + State_Hispanic + 
   #TotalRegion
-library(bestglm)
+#We now 
+
 Xy=total
 Xy$raceethnicity = NULL
+
 Xy = cbind(Xy, total$raceethnicity)
+Xy$gender = NULL
+myglm <-bestglm(Xy,nvmax = 8)
+Xy = Xy[,c("TotalPop", "White","Black","Professional","Unemployment",
+              "Service","Construction","State_IncomePerCap","comp_income",
+              "age","college","Office", "nat_bucket","IncomePerCap","State_Hispanic")]
+Xy$black_killed = total$raceethnicity
+#Xy$nonBlack = 1 - total$raceethnicity
+myglm_logit <-bestglm(Xy,family = binomial(), nvmax = 5)
+
+#Now that we have looked at a few different glm's to predict whether a person
+#shot was black or not we build a multilevel model.
+total$State_IncomePerCap = scale(total$State_IncomePerCap)
+#total$State_Hispanic = scale(total$State_Hispanic)
+total$TotalPop = scale(total$TotalPop)
+model.state.intercept = glmer(raceethnicity ~ TotalPop + age + Professional+ nat_bucket+Black + White + gender +comp_income 
+                              + (1|State_IncomePerCap),
+                   family = binomial("logit"),REML = FALSE, data=total)
+
+se1 <- sqrt(diag(vcov(model.state.intercept)))
+# table of estimates with 95% CI
+(tab <- cbind(Est = fixef(model.state.intercept), 
+              LL = fixef(model.state.intercept) - 1.96 * se1, UL = fixef(model.state.intercept) + 1.96 *se1))
+
+print(model.state.intercept, corr = FALSE)
+
+#We Scale Age
+total$age_scale = scale(total$age)
+total$Black_scale = scale(total$Black)
+model.state.slope = glmer(raceethnicity ~ TotalPop + age_scale+ Professional+ nat_bucket+Black + White + gender +comp_income
+                         + (Black+age_scale + nat_bucket|State_IncomePerCap), 
+                         family = binomial("logit"),REML = FALSE, data=total,
+                         glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)))
+
+
+
+se2 <- sqrt(diag(vcov(model.state.intercept)))
+# table of estimates with 95% CI
+(tab <- cbind(Est = fixef(model.state.slope), 
+              LL = fixef(model.state.slope) - 1.96 * se2, UL = fixef(model.state.slope) + 1.96 *se2))
+print(model.state.slope, corr = FALSE)
+
+
+
+model.state.slope.intercept = glmer(raceethnicity ~ TotalPop + age_scale+ Professional+ nat_bucket+Black + White + gender +comp_income
+                          + (1+Black+age_scale + nat_bucket|State_IncomePerCap), 
+                          family = binomial("logit"),REML = FALSE, data=total,
+                          glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)))
+
+se3 <- sqrt(diag(vcov(model.state.slope.intercept)))
+# table of estimates with 95% CI
+(tab <- cbind(Est = fixef(model.state.slope.intercept), 
+              LL = fixef(model.state.slope.intercept) - 1.96 * se3, UL = fixef(model.state.slope.intercept) + 1.96 *se3))
+print(model.state.slope.intercept, corr = FALSE)
+
+
+
+anova(model.state.intercept,model.state.slope,model.state.slope.intercept)                                                                                          
