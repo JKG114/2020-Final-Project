@@ -5,13 +5,9 @@ library(lme4)
 library(nlme) 
 library(knitr) 
 library(dplyr)
-library(knitr) 
 library(MASS)
 library(bestglm)
-require(ggplot2)
-require(GGally)
 require(reshape2)
-require(lme4)
 require(compiler)
 require(parallel)
 require(boot)
@@ -80,19 +76,24 @@ total$Women = NULL
 #Get the state level Aggregate Data
 #Notice we don't do Native or Asian, since these features correspond to very few killings
 #and will simply increase the "dependency" between our races
+acs$AsianPacific = acs$Asian + acs$Pacific
 state_levels = acs %>%
   group_by(State) %>% 
   summarise(TotalState = sum(TotalPop),
-            State_Men = sum(Men)/TotalState,
             #Total_State_Women = sum(Women)/TotalState,
-            State_Unemployment =  (sum(TotalPop*(Unemployment*.01)))/TotalState,
-            State_IncomePerCap = sum(TotalPop*IncomePerCap)/TotalState,
-            State_Poverty = (sum(TotalPop*(Poverty*.01)))/TotalState,
+            State_Men = sum(Men)/TotalState,
+            State_Unemployment =  (sum(TotalPop*Unemployment*.01))/TotalState,
+            State_IncomePerCap = sum(TotalPop*IncomePerCapErr)/TotalState,
+            State_Poverty = (sum(TotalPop*Poverty*.01))/TotalState,
+            State_Drive = (sum(TotalPop*Drive*.01))/TotalState,
+            State_Child_Poverty = (sum(TotalPop*.01*ChildPoverty))/TotalState,
             State_Hispanic = (sum(TotalPop*(Hispanic*.01)))/TotalState,
             State_Black = (sum(TotalPop*(Black*.01)))/TotalState,
             State_White = (sum(TotalPop*(White*.01)))/TotalState,
-            State_Drive = (sum(TotalPop*(Drive*.01)))/TotalState,
-            State_Child_Poverty = (sum(TotalPop*(ChildPoverty*.01)))/TotalState)
+            State_Asian_Pacific = (sum(TotalPop*(AsianPacific*.01)))/TotalState,
+            State_Native = (sum(TotalPop*(Native*.01)))/TotalState)
+
+
 
 #I will now subset the states into regions Northeast, South, West, Midwest (I had a fifth, Mountain,
 #but there weren't enough observations for it so I distributed the mountain states into the others)
@@ -201,6 +202,7 @@ Demographics_West$Region = "West"
 totalW = merge(totalW, Demographics_West, by= "Region")
 total = rbind(totalNE,totalMid,totalS,totalW)
 #We Drop colnames that are useless
+STATE = total$State
 drop = c("Region", "State", "geo_id", "County","IncomeErr", "IncomePerCapErr","Native","Asian",
          "Employed", "PrivateWork","WorkAtHome","share_black", "share_hispanic","share_white",
          "p_income","h_income","county_income", "TotalState.x", "State_Men.x","State_Unemployment.x", 
@@ -208,6 +210,8 @@ drop = c("Region", "State", "geo_id", "County","IncomeErr", "IncomePerCapErr","N
          "State_Drive.x","State_Child_Poverty.x", "TotalState.y","State_Men.y","State_Unemployment.y","State_IncomePerCap.y",  
          "State_Poverty.y", "State_Hispanic.y","State_Black.y","State_White.y","State_Drive.y","State_Child_Poverty.y", "cause")
 total = total[,!(names(total) %in% drop)]
+
+
 #This one is not clear so I leave it out of the above list (same goes for cause maybe..)
 total$armed = NULL
 total$pov = NULL
@@ -270,16 +274,16 @@ library(gridExtra)
 library(pROC) 
 p <- predict(glm.logit, newdata=test, type="response")
 plot(roc(test$raceethnicity,p), legacy.axes = TRUE)
-prf <- performance(pr, measure = "tpr", x.measure = "fpr")
-plot(prf)
+auc_logit =auc(roc(test$raceethnicity,p))
+title(main = "ROC Logistic Regression", line = +3)
 
 #The deviance residuals for the predictions on the trianed data)
-gg <- qplot(x = fitted(glm.logit), y = residuals(glm.logit)) +
+#gg <- qplot(x = fitted(glm.logit), y = residuals(glm.logit)) +
   #geom_smooth(method = "glm", se = FALSE) +
-  geom_point(alpha = 0.3, size = 3) +
-  theme_bw()
+ # geom_point(alpha = 0.3, size = 3) +
+  #theme_bw()
 
-print(gg)
+#print(gg)
 
 
 #test <- test %>%
@@ -297,8 +301,8 @@ print(gg)
   #labs(x = "1 - Specificity", y = "Sensitivity")
 #dev.off()
 
-ggplot(test$raceethnicity, p) +
-  labs(x = "1 - Specificity", y = "Sensitivity")
+#ggplot(test$raceethnicity, p) +
+ # labs(x = "1 - Specificity", y = "Sensitivity")
 
 Xy=total
 Xy$raceethnicity = NULL
@@ -314,49 +318,72 @@ Xy$black_killed = total$raceethnicity
 myglm_logit <-bestglm(Xy,family = binomial(), nvmax = 5)
 
 
-
 #Now that we have looked at a few different glm's to predict whether a person
-#shot was black or not we build a multilevel model.
-total$State_IncomePerCap = scale(total$State_IncomePerCap)
+#shot was black or not we build a multilevel model. We start by scaling the data where appropriate
+total$Scale_State_IncomePerCap = scale(total$State_IncomePerCap)
 #total$State_Hispanic = scale(total$State_Hispanic)
-total$TotalPop = scale(total$TotalPop)
-model.state.intercept = glmer(raceethnicity ~ TotalPop + age + Professional+ nat_bucket+Black + White  +comp_income 
-                              + (1|State_IncomePerCap),
-                   family = binomial("logit"),REML = FALSE, data=train)
+total$Scale_TotalPop = scale(total$TotalPop)
+total$age_scale = scale(total$age)
+total$Scale_TotalRegion = scale(total$TotalRegion)
+
+
+#A TRAIN TEST SPLIT
+## 75% of the sample size
+smp_size <- floor(0.8 * nrow(total))
+set.seed(123)
+train_ind <- sample(seq_len(nrow(total)), size = smp_size)
+total$State = STATE
+
+train <- total[train_ind, ]
+test <- total[-train_ind, ]
+
+#Test with states that were includeded in the training data
+test = test[test$State %in% unique(train$State),]
+
+#STATE INTERCEPT
+model.state.intercept = glmer(raceethnicity ~ Scale_TotalPop + age_scale + Professional+ nat_bucket+Black + White  +comp_income 
+                              + (1|Scale_State_IncomePerCap),
+                   family = binomial("logit"),REML = FALSE, data=train,
+                   glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)))
 
 se1 <- sqrt(diag(vcov(model.state.intercept)))
 # table of estimates with 95% CI
 (tab <- cbind(Est = fixef(model.state.intercept), 
               LL = fixef(model.state.intercept) - 1.96 * se1, UL = fixef(model.state.intercept) + 1.96 *se1))
 
-print(model.state.intercept, corr = FALSE)
-predictions.state.intercept <- predict(model.state.intercept, type = "response")
+#print(model.state.intercept, corr = FALSE)
+predictions.state.intercept <- predict(model.state.intercept, test, type = "response")
+roc_model.state.intercept <- roc(test$raceethnicity ~ predictions.state.intercept)
+auc1 = auc(roc_model.state.intercept)
+plot(roc_model.state.intercept)    
+title(main = "ROC Predictions State Intercept Model", line = +3)
 
 
-#We Scale Age
-total$age_scale = scale(total$age)
-total$Black_scale = scale(total$Black)
-model.state.slope = glmer(raceethnicity ~ TotalPop + age_scale+ Professional+ nat_bucket+Black + White  +comp_income
-                         + (Black+age_scale + nat_bucket|State_IncomePerCap), 
+
+
+#We have a STATE slope model
+model.state.slope = glmer(raceethnicity ~ Scale_TotalPop + age_scale+ Professional+ nat_bucket+Black + White  +comp_income
+                         + (Black+age_scale + nat_bucket|Scale_State_IncomePerCap), 
                          family = binomial("logit"),REML = FALSE, data=train,
                          glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)))
 
 
 
-se2 <- sqrt(diag(vcov(model.state.intercept)))
+se2 <- sqrt(diag(vcov(model.state.slope)))
 # table of estimates with 95% CI
 (tab <- cbind(Est = fixef(model.state.slope), 
               LL = fixef(model.state.slope) - 1.96 * se2, UL = fixef(model.state.slope) + 1.96 *se2))
 print(model.state.slope, corr = FALSE)
 
-predictions.state.slope <- predict(model.state.slope, type = "response")
-g <- roc(total$raceethnicity ~ predictions.state.slope)
-plot(g)    
-title(main = "ROC Predictions.state.slope Model")
+predictions.state.slope <- predict(model.state.slope, test, type = "response")
+roc_model.state.slope <- roc(test$raceethnicity ~ predictions.state.slope)
+auc2 = auc(roc_model.state.slope)
+plot(roc_model.state.slope)    
+title(main = "ROC Predictions State Slope Model", line = +3)
 
-
-model.state.slope.intercept = glmer(raceethnicity ~ TotalPop + age_scale+ Professional+ nat_bucket+Black + White + gender +comp_income
-                          + (1+Black+age_scale + nat_bucket|State_IncomePerCap), 
+# STATE SLOPE
+model.state.slope.intercept = glmer(raceethnicity ~ Scale_TotalPop + age_scale+ Professional+ nat_bucket+Black + White + gender +comp_income
+                          + (1+Black+age_scale + nat_bucket|Scale_State_IncomePerCap), 
                           family = binomial("logit"),REML = FALSE, data=train,
                           glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)))
 
@@ -365,9 +392,72 @@ se3 <- sqrt(diag(vcov(model.state.slope.intercept)))
 (tab <- cbind(Est = fixef(model.state.slope.intercept), 
               LL = fixef(model.state.slope.intercept) - 1.96 * se3, UL = fixef(model.state.slope.intercept) + 1.96 *se3))
 print(model.state.slope.intercept, corr = FALSE)
+predictions.state.slope.intercept <- predict(model.state.slope.intercept, test, type = "response")
+roc_model.state.slope.intercept <- roc(test$raceethnicity ~ predictions.state.slope.intercept)
+auc3 = auc(roc_model.state.slope.intercept)
+plot(roc_model.state.slope.intercept)    
+title(main = "ROC Predictions state slope intercept Model" ,line = +3)
+
+anova(model.state.intercept,model.state.slope,model.state.slope.intercept)   
+
+#REGION INTERCEPT
+model.region.intercept = glmer(raceethnicity ~ Scale_TotalPop+age_scale+ Professional+ nat_bucket+Black + White + gender +comp_income
+                                    + Scale_State_IncomePerCap+ State_Hispanic+ (1|Scale_TotalRegion), 
+                                    family = binomial("logit"),REML = FALSE, data=train,
+                                    glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)))
+
+se4 <- sqrt(diag(vcov(model.region.intercept)))
+# table of estimates with 95% CI
+(tab <- cbind(Est = fixef(model.region.intercept), 
+              LL = fixef(model.region.intercept) - 1.96 * se4, UL = fixef(model.region.intercept) + 1.96 *se4))
+print(model.region.intercept, corr = FALSE)
+
+predictions.model.region.intercept <- predict(model.region.intercept, test, type = "response")
+roc_model.region.intercept <- roc(test$raceethnicity ~ predictions.model.region.intercept)
+auc4= auc(roc_model.region.intercept)
+plot(roc_model.region.intercept)    
+title(main = "ROC Predictions Region Intercept Model", line = +3)
 
 
 
-anova(model.state.intercept,model.state.slope,model.state.slope.intercept)                                                                                          
 
-Display(model.state.slope)
+#REGION VARYING SLOPE
+
+model.region.slope = glmer(raceethnicity ~ Scale_TotalPop+age_scale+ Professional+ nat_bucket+Black + White + gender +comp_income
+                               + Scale_State_IncomePerCap+ State_Hispanic+ (Scale_State_IncomePerCap+ comp_income+age_scale + Black|Scale_TotalRegion), 
+                               family = binomial("logit"),REML = FALSE, data=train,
+                               glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)))
+
+se5 <- sqrt(diag(vcov(model.region.slope)))
+# table of estimates with 95% CI
+(tab <- cbind(Est = fixef(model.region.slope), 
+              LL = fixef(model.region.slope) - 1.96 * se5, UL = fixef(model.region.slope) + 1.96 *se5))
+print(model.region.slope, corr = FALSE)
+prediction.model.region.slope <- predict(model.region.slope, test, type = "response")
+roc_model.region.slope <- roc(test$raceethnicity ~ prediction.model.region.slope)
+auc5= auc(roc_model.region.slope)
+plot(roc_model.region.slope)    
+title(main = "ROC Predictions Region Slope Model", line = +3)
+
+#REGION VARYING SLOPE INTERCEPT
+
+model.region.slope.intercept = glmer(raceethnicity ~Scale_TotalPop + age_scale+ Professional+ nat_bucket+Black + White + gender +comp_income
+                           + Scale_State_IncomePerCap+ State_Hispanic+ (1 +Scale_State_IncomePerCap+ comp_income+age_scale + Black|Scale_TotalRegion), 
+                           family = binomial("logit"),REML = FALSE, data=train,
+                           glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)))
+
+se6 <- sqrt(diag(vcov(model.region.slope.intercept)))
+# table of estimates with 95% CI
+(tab <- cbind(Est = fixef(model.region.slope.intercept), 
+              LL = fixef(model.region.slope.intercept) - 1.96 * se6, UL = fixef(model.region.slope.intercept) + 1.96 *se6))
+print(model.region.slope.intercept, corr = FALSE)
+predictions.region.region.slope.intercept <- predict(model.region.slope.intercept, test, type = "response")
+roc_region.slope.intercept <- roc(test$raceethnicity ~ predictions.region.region.slope.intercept)
+auc6= auc(roc_region.slope.intercept)
+plot(roc_region.slope.intercept)    
+title(main = "ROC Predictions Region Slope Intercept Model", line = +3)
+
+
+anova(model.state.intercept,model.state.slope,model.state.slope.intercept, 
+      model.region.intercept,model.region.slope ,model.region.slope.intercept)   
+
