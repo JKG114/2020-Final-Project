@@ -8,6 +8,14 @@ library(dplyr)
 library(knitr) 
 library(MASS)
 library(bestglm)
+require(ggplot2)
+require(GGally)
+require(reshape2)
+require(lme4)
+require(compiler)
+require(parallel)
+require(boot)
+require(lattice)
 
 
 #setwd('Users/stuartgeman/Desktop/data2020/Final Project')
@@ -241,7 +249,56 @@ backward$anova
   #PublicWork + SelfEmployed + Unemployment + age + comp_income + 
   #nat_bucket + college + State_IncomePerCap + State_Hispanic + 
   #TotalRegion
-#We now 
+#We now build a normal logistic model with some of the recommended variables. 
+#A TRAIN TEST SPLIT
+## 75% of the sample size
+smp_size <- floor(0.75 * nrow(total))
+
+## set the seed to make your partition reproducible
+set.seed(123)
+train_ind <- sample(seq_len(nrow(total)), size = smp_size)
+
+train <- total[train_ind, ]
+test <- total[-train_ind, ]
+
+glm.logit = glm(raceethnicity ~ White + Black + Professional + Service + Office +
+                  Construction + Production + Carpool + OtherTransp+ age  +
+                  comp_income + nat_bucket + college +State_IncomePerCap + State_Hispanic + TotalRegion,
+                family = binomial, data = train)
+
+library(gridExtra)
+library(pROC) 
+p <- predict(glm.logit, newdata=test, type="response")
+plot(roc(test$raceethnicity,p), legacy.axes = TRUE)
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+plot(prf)
+
+#The deviance residuals for the predictions on the trianed data)
+gg <- qplot(x = fitted(glm.logit), y = residuals(glm.logit)) +
+  #geom_smooth(method = "glm", se = FALSE) +
+  geom_point(alpha = 0.3, size = 3) +
+  theme_bw()
+
+print(gg)
+
+
+#test <- test %>%
+ # mutate(test$raceethnicity = test$raceethnicity)
+#test <- test %>%
+ # mutate(predicted.prob = p)
+#test <- test %>%
+ # mutate(predicted = ifelse(predicted.prob >0.5, 1, 0))
+#table(test$raceethnicity, test$predicted)
+#table(test$raceethnicity)
+#roc(test$raceethnicity, test$predicted.prob)
+#png("1d.png", width = 400, height =400, res = 110)
+#ggplot(test, aes(d = raceethnicity, m = predicted.prob)) +
+ # geom_abline(slope = 1, intercept = 0) +
+  #labs(x = "1 - Specificity", y = "Sensitivity")
+#dev.off()
+
+ggplot(test$raceethnicity, p) +
+  labs(x = "1 - Specificity", y = "Sensitivity")
 
 Xy=total
 Xy$raceethnicity = NULL
@@ -256,14 +313,16 @@ Xy$black_killed = total$raceethnicity
 #Xy$nonBlack = 1 - total$raceethnicity
 myglm_logit <-bestglm(Xy,family = binomial(), nvmax = 5)
 
+
+
 #Now that we have looked at a few different glm's to predict whether a person
 #shot was black or not we build a multilevel model.
 total$State_IncomePerCap = scale(total$State_IncomePerCap)
 #total$State_Hispanic = scale(total$State_Hispanic)
 total$TotalPop = scale(total$TotalPop)
-model.state.intercept = glmer(raceethnicity ~ TotalPop + age + Professional+ nat_bucket+Black + White + gender +comp_income 
+model.state.intercept = glmer(raceethnicity ~ TotalPop + age + Professional+ nat_bucket+Black + White  +comp_income 
                               + (1|State_IncomePerCap),
-                   family = binomial("logit"),REML = FALSE, data=total)
+                   family = binomial("logit"),REML = FALSE, data=train)
 
 se1 <- sqrt(diag(vcov(model.state.intercept)))
 # table of estimates with 95% CI
@@ -271,13 +330,15 @@ se1 <- sqrt(diag(vcov(model.state.intercept)))
               LL = fixef(model.state.intercept) - 1.96 * se1, UL = fixef(model.state.intercept) + 1.96 *se1))
 
 print(model.state.intercept, corr = FALSE)
+predictions.state.intercept <- predict(model.state.intercept, type = "response")
+
 
 #We Scale Age
 total$age_scale = scale(total$age)
 total$Black_scale = scale(total$Black)
-model.state.slope = glmer(raceethnicity ~ TotalPop + age_scale+ Professional+ nat_bucket+Black + White + gender +comp_income
+model.state.slope = glmer(raceethnicity ~ TotalPop + age_scale+ Professional+ nat_bucket+Black + White  +comp_income
                          + (Black+age_scale + nat_bucket|State_IncomePerCap), 
-                         family = binomial("logit"),REML = FALSE, data=total,
+                         family = binomial("logit"),REML = FALSE, data=train,
                          glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)))
 
 
@@ -288,11 +349,15 @@ se2 <- sqrt(diag(vcov(model.state.intercept)))
               LL = fixef(model.state.slope) - 1.96 * se2, UL = fixef(model.state.slope) + 1.96 *se2))
 print(model.state.slope, corr = FALSE)
 
+predictions.state.slope <- predict(model.state.slope, type = "response")
+g <- roc(total$raceethnicity ~ predictions.state.slope)
+plot(g)    
+title(main = "ROC Predictions.state.slope Model")
 
 
 model.state.slope.intercept = glmer(raceethnicity ~ TotalPop + age_scale+ Professional+ nat_bucket+Black + White + gender +comp_income
                           + (1+Black+age_scale + nat_bucket|State_IncomePerCap), 
-                          family = binomial("logit"),REML = FALSE, data=total,
+                          family = binomial("logit"),REML = FALSE, data=train,
                           glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 200000)))
 
 se3 <- sqrt(diag(vcov(model.state.slope.intercept)))
@@ -304,3 +369,5 @@ print(model.state.slope.intercept, corr = FALSE)
 
 
 anova(model.state.intercept,model.state.slope,model.state.slope.intercept)                                                                                          
+
+Display(model.state.slope)
